@@ -2,11 +2,15 @@ from tf2_bert.models import build_transformer_model
 from tf2_bert.tokenizers import Tokenizer
 from tensorflow.keras.utils import to_categorical, plot_model
 from tensorflow.keras.layers import Lambda, Dense, Input, Dropout
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+mpl.use('TKAgg')
 
 # 周期数
 epochs = 5
@@ -122,7 +126,7 @@ model.compile(loss={
     optimizer=Adam(1e-5),
     metrics=['accuracy'])
 # 保存 val_loss 最低的模型
-callbacks = [ModelCheckpoint(filepath='bert_model/' + '{epoch:02d}.h5',
+callbacks = [ModelCheckpoint(filepath='bert_model.h5',
                              monitor='val_loss',
                              verbose=1,
                              save_best_only=True)]
@@ -133,3 +137,124 @@ model.fit([token_ids, segment_ids], [label[0], label[1], label[2], label[3], lab
           epochs=epochs,
           validation_split=validation_split,
           callbacks=callbacks)
+
+# 获取训练过程中的准确率和损失值
+accuracy_out0 = history.history['out0_accuracy']
+accuracy_out1 = history.history['out1_accuracy']
+accuracy_out2 = history.history['out2_accuracy']
+accuracy_out3 = history.history['out3_accuracy']
+accuracy_out4 = history.history['out4_accuracy']
+accuracy_out5 = history.history['out5_accuracy']
+accuracy_out6 = history.history['out6_accuracy']
+
+loss_out0 = history.history['out0_loss']
+loss_out1 = history.history['out1_loss']
+loss_out2 = history.history['out2_loss']
+loss_out3 = history.history['out3_loss']
+loss_out4 = history.history['out4_loss']
+loss_out5 = history.history['out5_loss']
+loss_out6 = history.history['out6_loss']
+
+# 创建 epochs 列表，用于横坐标
+epochs = range(1, len(accuracy_out0) + 1)
+
+# 绘制七个任务的准确率曲线
+plt.plot(epochs, accuracy_out0, label='Accuracy out0')
+plt.plot(epochs, accuracy_out1, label='Accuracy out1')
+plt.plot(epochs, accuracy_out2, label='Accuracy out2')
+plt.plot(epochs, accuracy_out3, label='Accuracy out3')
+plt.plot(epochs, accuracy_out4, label='Accuracy out4')
+plt.plot(epochs, accuracy_out5, label='Accuracy out5')
+plt.plot(epochs, accuracy_out6, label='Accuracy out6')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.title('Accuracy for Each Task')
+plt.show()
+
+# 绘制七个任务的损失值曲线
+plt.plot(epochs, loss_out0, label='Loss out0')
+plt.plot(epochs, loss_out1, label='Loss out1')
+plt.plot(epochs, loss_out2, label='Loss out2')
+plt.plot(epochs, loss_out3, label='Loss out3')
+plt.plot(epochs, loss_out4, label='Loss out4')
+plt.plot(epochs, loss_out5, label='Loss out5')
+plt.plot(epochs, loss_out6, label='Loss out6')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+plt.title('Loss for Each Task')
+plt.show()
+
+# 载入模型
+model = load_model('bert_model.h5')
+# 词表路径
+dict_path = './chinese_roberta_wwm_ext_L-12_H-768_A-12' + '/vocab.txt'
+# 建立分词器
+tokenizer = Tokenizer(dict_path)
+
+
+# 模型预测
+# 预测函数
+def predict(text):
+    # 分词并把 token 变成编号，句子长度需要与模型训练时一致
+    token_ids, segment_ids = tokenizer.encode(text, first_length=256)
+    # 增加一个维度表示批次大小为 1
+    token_ids = np.expand_dims(token_ids, axis=0)
+    # 增加一个维度表示批次大小为 1
+    segment_ids = np.expand_dims(segment_ids, axis=0)
+    # 模型预测
+    pre = model.predict([token_ids, segment_ids])
+    # 去掉一个没用的维度
+    pre = np.array(pre).reshape((7, 3))
+    # 获得可能性最大的预测结果
+    pre = np.argmax(pre, axis=1)
+    comment = ''
+    if pre[0] == 0:
+        comment += '性价比差,'
+    elif pre[0] == 1:
+        comment += '-,'
+    elif pre[0] == 2:
+        comment += '性价比好,'
+    if pre[1] == 0:
+        comment += '质量差,'
+    elif pre[1] == 1:
+        comment += '-,'
+    elif pre[1] == 2:
+        comment += '质量好,'
+    if pre[2] == 0:
+        comment += '希望有活动,'
+    elif pre[2] == 1:
+        comment += '-,'
+    elif pre[2] == 2:
+        comment += '参加了活动,'
+    if pre[3] == 0:
+        comment += '客服物流包装差,'
+    elif pre[3] == 1:
+        comment += '-,'
+    elif pre[3] == 2:
+        comment += '客服物流包装好,'
+    if pre[4] == 0:
+        comment += '新用户,'
+    elif pre[4] == 1:
+        comment += '-,'
+    elif pre[4] == 2:
+        comment += '老用户,'
+    if pre[5] == 0:
+        comment += '不会再买,'
+    elif pre[5] == 1:
+        comment += '-,'
+    elif pre[5] == 2:
+        comment += '会继续购买,'
+    if pre[6] == 0:
+        comment += '差评'
+    elif pre[6] == 1:
+        comment += '中评'
+    elif pre[6] == 2:
+        comment += '好评'
+    return pre, comment
+
+
+pre, comment = predict("还没用，不知道怎么样")
+print('pre:', pre)
+print('comment:', comment)
